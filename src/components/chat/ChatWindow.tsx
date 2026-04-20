@@ -15,17 +15,24 @@ interface Props {
 export default function ChatWindow({ group, currentUser, isAdmin }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const supabase = useMemo(() => createClient(), [])
 
   const fetchMessages = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select(`*, profiles(*), reactions(*)`)
       .eq('group_id', group.id)
       .order('created_at', { ascending: true })
 
+    if (error) {
+      console.error('Nachrichten Fehler:', error.message, error.details)
+      setError(error.message)
+    } else {
+      setError('')
+    }
     setMessages(data || [])
     setLoading(false)
   }, [group.id, supabase])
@@ -57,7 +64,12 @@ export default function ChatWindow({ group, currentUser, isAdmin }: Props) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto py-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#374151 transparent' }}>
-        {messages.length === 0 ? (
+        {error && (
+          <div className="mx-4 mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+            Fehler beim Laden: {error}
+          </div>
+        )}
+        {messages.length === 0 && !error ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="text-5xl mb-4">{group.icon}</div>
             <h3 className="text-white font-semibold mb-1">{group.name}</h3>
