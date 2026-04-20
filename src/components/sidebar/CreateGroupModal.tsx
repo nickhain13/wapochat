@@ -17,18 +17,26 @@ export default function CreateGroupModal({ userId, onClose, onCreated }: Props) 
   const [description, setDescription] = useState('')
   const [icon, setIcon] = useState('🎬')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const supabase = createClient()
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
+    setError('')
 
-    const { data: group } = await supabase
+    const { data: group, error: insertError } = await supabase
       .from('groups')
       .insert({ name: name.trim(), description: description.trim() || null, icon, created_by: userId })
       .select()
       .single()
+
+    if (insertError) {
+      setError(`Fehler: ${insertError.message}`)
+      setLoading(false)
+      return
+    }
 
     if (group) {
       await supabase.from('group_members').insert({ group_id: group.id, user_id: userId })
@@ -94,6 +102,8 @@ export default function CreateGroupModal({ userId, onClose, onCreated }: Props) 
               className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
             />
           </div>
+
+          {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
 
           <button
             type="submit"
