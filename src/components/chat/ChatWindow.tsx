@@ -23,7 +23,7 @@ export default function ChatWindow({ group, currentUser, isAdmin }: Props) {
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
       .from('messages')
-      .select(`*, profiles(*), reactions(*)`)
+      .select(`*, profiles!messages_user_id_fkey(*), reactions(*)`)
       .eq('group_id', group.id)
       .order('created_at', { ascending: true })
 
