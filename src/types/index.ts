@@ -12,6 +12,7 @@ export interface Group {
   name: string
   description: string | null
   icon: string
+  parent_id: string | null
   created_by: string | null
   created_at: string
 }

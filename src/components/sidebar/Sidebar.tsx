@@ -1,13 +1,98 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, UserPlus, LogOut, Film, Hash } from 'lucide-react'
+import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Avatar from '@/components/ui/Avatar'
 import CreateGroupModal from './CreateGroupModal'
 import InviteModal from './InviteModal'
 import { useRouter } from 'next/navigation'
+
+interface TreeNode {
+  group: Group
+  children: TreeNode[]
+  depth: number
+}
+
+function buildTree(groups: Group[], parentId: string | null = null, depth = 0): TreeNode[] {
+  return groups
+    .filter(g => g.parent_id === parentId)
+    .map(g => ({
+      group: g,
+      children: depth < 2 ? buildTree(groups, g.id, depth + 1) : [],
+      depth,
+    }))
+}
+
+interface GroupNodeProps {
+  node: TreeNode
+  selectedGroupId: string | null
+  onSelectGroup: (group: Group) => void
+  onAddSub: (parent: Group) => void
+  isAdmin: boolean
+}
+
+function GroupNode({ node, selectedGroupId, onSelectGroup, onAddSub, isAdmin }: GroupNodeProps) {
+  const [open, setOpen] = useState(true)
+  const hasChildren = node.children.length > 0
+  const isSelected = selectedGroupId === node.group.id
+
+  const indent = node.depth * 12
+
+  return (
+    <div>
+      <div
+        className={`group flex items-center gap-1.5 rounded-xl pr-1 transition-colors cursor-pointer ${
+          isSelected ? 'bg-amber-500/15 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+        }`}
+        style={{ paddingLeft: `${8 + indent}px` }}
+      >
+        <button
+          className="w-4 h-4 flex items-center justify-center flex-shrink-0 text-gray-600"
+          onClick={() => hasChildren && setOpen(!open)}
+        >
+          {hasChildren
+            ? open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />
+            : null}
+        </button>
+
+        <button
+          className="flex items-center gap-2 flex-1 py-1.5 text-left min-w-0"
+          onClick={() => onSelectGroup(node.group)}
+        >
+          <span className="text-base flex-shrink-0">{node.group.icon}</span>
+          <span className="text-sm font-medium truncate">{node.group.name}</span>
+        </button>
+
+        {isAdmin && node.depth < 2 && (
+          <button
+            onClick={() => onAddSub(node.group)}
+            className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-600 hover:text-amber-400 transition-all flex-shrink-0"
+            title="Untergruppe erstellen"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {open && hasChildren && (
+        <div>
+          {node.children.map(child => (
+            <GroupNode
+              key={child.group.id}
+              node={child}
+              selectedGroupId={selectedGroupId}
+              onSelectGroup={onSelectGroup}
+              onAddSub={onAddSub}
+              isAdmin={isAdmin}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface Props {
   groups: Group[]
@@ -19,10 +104,23 @@ interface Props {
 
 export default function Sidebar({ groups, currentUser, selectedGroupId, onSelectGroup, onGroupsChanged }: Props) {
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [parentGroup, setParentGroup] = useState<Group | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const isAdmin = currentUser.role === 'admin'
   const router = useRouter()
   const supabase = createClient()
+
+  const tree = buildTree(groups)
+
+  function handleAddSub(parent: Group) {
+    setParentGroup(parent)
+    setShowCreateGroup(true)
+  }
+
+  function handleCreateTop() {
+    setParentGroup(null)
+    setShowCreateGroup(true)
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -49,37 +147,30 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
             <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Gruppen</span>
             {isAdmin && (
               <button
-                onClick={() => setShowCreateGroup(true)}
+                onClick={handleCreateTop}
                 className="text-gray-600 hover:text-amber-400 transition-colors"
-                title="Gruppe erstellen"
+                title="Neue Gruppe"
               >
                 <Plus className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          {groups.map(group => (
-            <button
-              key={group.id}
-              onClick={() => onSelectGroup(group)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-colors ${
-                selectedGroupId === group.id
-                  ? 'bg-amber-500/15 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-              }`}
-            >
-              <span className="text-lg w-7 text-center flex-shrink-0">{group.icon}</span>
-              <span className="text-sm font-medium truncate">{group.name}</span>
-            </button>
+          {tree.map(node => (
+            <GroupNode
+              key={node.group.id}
+              node={node}
+              selectedGroupId={selectedGroupId}
+              onSelectGroup={onSelectGroup}
+              onAddSub={handleAddSub}
+              isAdmin={isAdmin}
+            />
           ))}
 
-          {groups.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Hash className="w-8 h-8 text-gray-700 mb-2" />
-              <p className="text-gray-600 text-xs">
-                {isAdmin ? 'Erstelle deine erste Gruppe' : 'Noch keine Gruppen'}
-              </p>
-            </div>
+          {tree.length === 0 && (
+            <p className="text-gray-600 text-xs text-center py-8">
+              {isAdmin ? 'Erstelle deine erste Gruppe' : 'Noch keine Gruppen'}
+            </p>
           )}
         </div>
 
@@ -98,7 +189,7 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
             <Avatar name={currentUser.display_name || currentUser.email} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium truncate">{currentUser.display_name || currentUser.email.split('@')[0]}</p>
-              <p className="text-gray-500 text-xs truncate">{isAdmin ? 'Admin' : 'Mitglied'}</p>
+              <p className="text-gray-500 text-xs">{isAdmin ? 'Admin' : 'Mitglied'}</p>
             </div>
             <button
               onClick={handleLogout}
@@ -114,6 +205,8 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
       {showCreateGroup && (
         <CreateGroupModal
           userId={currentUser.id}
+          parentGroup={parentGroup}
+          allGroups={groups}
           onClose={() => setShowCreateGroup(false)}
           onCreated={onGroupsChanged}
         />
