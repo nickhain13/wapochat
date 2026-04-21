@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Send, ImagePlus, X } from 'lucide-react'
+import { Send, Paperclip, X, Play } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
@@ -10,44 +10,57 @@ interface Props {
   onSent: () => void
 }
 
+const IMAGE_MAX = 10 * 1024 * 1024   // 10 MB
+const VIDEO_MAX = 100 * 1024 * 1024  // 100 MB
+
+function isVideoFile(file: File) {
+  return file.type.startsWith('video/')
+}
+
 export default function MessageInput({ groupId, userId, onSent }: Props) {
   const [text, setText] = useState('')
-  const [image, setImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [media, setMedia] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
-  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Bild darf maximal 10 MB groß sein.')
+
+    const isVideo = isVideoFile(file)
+    const limit = isVideo ? VIDEO_MAX : IMAGE_MAX
+    const limitLabel = isVideo ? '100 MB' : '10 MB'
+
+    if (file.size > limit) {
+      alert(`${isVideo ? 'Video' : 'Bild'} darf maximal ${limitLabel} groß sein.`)
       return
     }
-    setImage(file)
-    setImagePreview(URL.createObjectURL(file))
+
+    setMedia(file)
+    setMediaPreview(URL.createObjectURL(file))
   }
 
-  function removeImage() {
-    setImage(null)
-    setImagePreview(null)
+  function removeMedia() {
+    setMedia(null)
+    setMediaPreview(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
   async function handleSend() {
-    if (!text.trim() && !image) return
+    if (!text.trim() && !media) return
     setUploading(true)
 
-    let imageUrl: string | null = null
+    let mediaUrl: string | null = null
 
-    if (image) {
-      const ext = image.name.split('.').pop()
+    if (media) {
+      const ext = media.name.split('.').pop()
       const path = `${userId}/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('chat-images').upload(path, image)
+      const { error } = await supabase.storage.from('chat-images').upload(path, media)
       if (!error) {
         const { data } = supabase.storage.from('chat-images').getPublicUrl(path)
-        imageUrl = data.publicUrl
+        mediaUrl = data.publicUrl
       }
     }
 
@@ -55,11 +68,11 @@ export default function MessageInput({ groupId, userId, onSent }: Props) {
       group_id: groupId,
       user_id: userId,
       content: text.trim() || null,
-      image_url: imageUrl,
+      image_url: mediaUrl,
     })
 
     setText('')
-    removeImage()
+    removeMedia()
     setUploading(false)
     onSent()
   }
@@ -71,13 +84,30 @@ export default function MessageInput({ groupId, userId, onSent }: Props) {
     }
   }
 
+  const isVideo = media ? isVideoFile(media) : false
+
   return (
     <div className="p-4 border-t border-gray-800">
-      {imagePreview && (
+      {mediaPreview && (
         <div className="relative inline-block mb-3">
-          <img src={imagePreview} alt="Vorschau" className="h-24 rounded-xl border border-gray-700" />
+          {isVideo ? (
+            <div className="relative">
+              <video
+                src={mediaPreview}
+                className="h-24 rounded-xl border border-gray-700 bg-gray-900"
+                style={{ maxWidth: '200px' }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="bg-black/50 rounded-full p-1.5">
+                  <Play className="w-4 h-4 text-white fill-white" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <img src={mediaPreview} alt="Vorschau" className="h-24 rounded-xl border border-gray-700" />
+          )}
           <button
-            onClick={removeImage}
+            onClick={removeMedia}
             className="absolute -top-2 -right-2 bg-gray-700 hover:bg-gray-600 rounded-full p-0.5 transition-colors"
           >
             <X className="w-3.5 h-3.5 text-white" />
@@ -89,16 +119,16 @@ export default function MessageInput({ groupId, userId, onSent }: Props) {
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
-          onChange={handleImageSelect}
+          accept="image/*,video/*"
+          onChange={handleFileSelect}
           className="hidden"
         />
         <button
           onClick={() => fileRef.current?.click()}
           className="text-gray-500 hover:text-amber-400 transition-colors p-1 flex-shrink-0"
-          title="Bild hinzufügen"
+          title="Bild oder Video hinzufügen"
         >
-          <ImagePlus className="w-5 h-5" />
+          <Paperclip className="w-5 h-5" />
         </button>
 
         <textarea
@@ -113,7 +143,7 @@ export default function MessageInput({ groupId, userId, onSent }: Props) {
 
         <button
           onClick={handleSend}
-          disabled={uploading || (!text.trim() && !image)}
+          disabled={uploading || (!text.trim() && !media)}
           className="bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:cursor-not-allowed text-gray-950 rounded-xl p-2 transition-colors flex-shrink-0"
         >
           <Send className="w-4 h-4" />

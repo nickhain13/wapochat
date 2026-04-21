@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+
+function isVideoUrl(url: string) {
+  return /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(url)
+}
 import { CheckCircle2, Circle, SmilePlus } from 'lucide-react'
 import Avatar from '@/components/ui/Avatar'
 import { Message, Profile } from '@/types'
@@ -68,12 +72,21 @@ export default function MessageBubble({ message, currentUser, isAdmin }: Props) 
             <p className="text-gray-100 text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
           )}
           {message.image_url && (
-            <img
-              src={message.image_url}
-              alt="Bild"
-              className="max-w-xs rounded-xl mt-1 cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => window.open(message.image_url!, '_blank')}
-            />
+            isVideoUrl(message.image_url) ? (
+              <video
+                src={message.image_url}
+                controls
+                className="max-w-xs rounded-xl mt-1"
+                style={{ maxHeight: '300px' }}
+              />
+            ) : (
+              <img
+                src={message.image_url}
+                alt="Bild"
+                className="max-w-xs rounded-xl mt-1 cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => window.open(message.image_url!, '_blank')}
+              />
+            )
           )}
 
           {approved && (
