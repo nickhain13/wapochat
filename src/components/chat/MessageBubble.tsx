@@ -67,35 +67,50 @@ export default function MessageBubble({ message, currentUser, isAdmin }: Props) 
           </span>
         </div>
 
-        <div className={`relative rounded-2xl px-4 py-2.5 ${isOwn ? 'bg-amber-600/20 border border-amber-600/30' : 'bg-gray-800 border border-gray-700/50'}`}>
-          {message.content && (
+        {message.content && (
+          <div className={`relative rounded-2xl px-4 py-2.5 ${isOwn ? 'bg-amber-600/20 border border-amber-600/30' : 'bg-gray-800 border border-gray-700/50'}`}>
             <p className="text-gray-100 text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-          )}
-          {message.image_url && (
-            isVideoUrl(message.image_url) ? (
+            {approved && (
+              <div className="flex items-center gap-1 mt-2 text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">Abgenommen</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {message.image_url && (
+          <div className="mt-1">
+            {isVideoUrl(message.image_url) ? (
               <video
                 src={message.image_url}
                 controls
-                className="max-w-xs rounded-xl mt-1"
+                className="max-w-xs rounded-xl"
                 style={{ maxHeight: '300px' }}
               />
             ) : (
               <img
                 src={message.image_url}
                 alt="Bild"
-                className="max-w-xs rounded-xl mt-1 cursor-pointer hover:opacity-90 transition-opacity"
+                className="max-w-xs rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => window.open(message.image_url!, '_blank')}
               />
-            )
-          )}
+            )}
+            {!message.content && approved && (
+              <div className="flex items-center gap-1 mt-1 text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">Abgenommen</span>
+              </div>
+            )}
+          </div>
+        )}
 
-          {approved && (
-            <div className="flex items-center gap-1 mt-2 text-emerald-400">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">Abgenommen</span>
-            </div>
-          )}
-        </div>
+        {!message.content && !message.image_url && approved && (
+          <div className="flex items-center gap-1 mt-1 text-emerald-400">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">Abgenommen</span>
+          </div>
+        )}
 
         {Object.keys(reactionCounts).length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
