@@ -5,30 +5,43 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Film } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+
+type Mode = 'login' | 'reset'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [mode, setMode] = useState<Mode>('login')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const router = useRouter()
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
 
-    if (error) {
-      setError('Fehler beim Senden. Bitte versuche es erneut.')
+    if (mode === 'reset') {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/set-password`,
+      })
+      if (error) {
+        setError('Fehler beim Senden. Bitte versuche es erneut.')
+      } else {
+        setSent(true)
+      }
     } else {
-      setSent(true)
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setError('E-Mail oder Passwort falsch.')
+      } else {
+        router.push('/')
+        router.refresh()
+      }
     }
     setLoading(false)
   }
@@ -52,13 +65,25 @@ export default function LoginPage() {
               <div className="text-4xl mb-4">📬</div>
               <h2 className="text-white font-semibold mb-2">Link gesendet!</h2>
               <p className="text-gray-400 text-sm">
-                Schau in dein Postfach bei <span className="text-amber-400">{email}</span> und klicke auf den Anmeldelink.
+                Schau in dein Postfach bei <span className="text-amber-400">{email}</span> und klicke auf den Link.
               </p>
+              <button
+                onClick={() => { setSent(false); setMode('login') }}
+                className="mt-4 text-amber-400 text-sm hover:text-amber-300 transition-colors"
+              >
+                Zurück zur Anmeldung
+              </button>
             </div>
           ) : (
-            <form onSubmit={handleLogin}>
-              <h2 className="text-white font-semibold mb-1">Anmelden</h2>
-              <p className="text-gray-500 text-sm mb-5">Du bekommst einen Anmeldelink per E-Mail.</p>
+            <form onSubmit={handleSubmit}>
+              <h2 className="text-white font-semibold mb-1">
+                {mode === 'login' ? 'Anmelden' : 'Passwort zurücksetzen'}
+              </h2>
+              <p className="text-gray-500 text-sm mb-5">
+                {mode === 'login'
+                  ? 'Melde dich mit E-Mail und Passwort an.'
+                  : 'Du bekommst einen Reset-Link per E-Mail.'}
+              </p>
 
               <label className="block text-gray-400 text-sm mb-1.5">E-Mail</label>
               <input
@@ -70,6 +95,21 @@ export default function LoginPage() {
                 className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm mb-4 outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
               />
 
+              {mode === 'login' && (
+                <>
+                  <label className="block text-gray-400 text-sm mb-1.5">Passwort</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    autoComplete="current-password"
+                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm mb-4 outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
+                  />
+                </>
+              )}
+
               {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 
               <button
@@ -77,8 +117,28 @@ export default function LoginPage() {
                 disabled={loading}
                 className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950 font-semibold rounded-lg py-2.5 text-sm transition-colors"
               >
-                {loading ? 'Sende...' : 'Anmeldelink senden'}
+                {loading ? 'Bitte warten...' : mode === 'login' ? 'Anmelden' : 'Reset-Link senden'}
               </button>
+
+              <div className="text-center mt-4">
+                {mode === 'login' ? (
+                  <button
+                    type="button"
+                    onClick={() => { setMode('reset'); setError('') }}
+                    className="text-gray-500 hover:text-gray-400 text-xs transition-colors"
+                  >
+                    Passwort vergessen?
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setMode('login'); setError('') }}
+                    className="text-gray-500 hover:text-gray-400 text-xs transition-colors"
+                  >
+                    Zurück zur Anmeldung
+                  </button>
+                )}
+              </div>
             </form>
           )}
         </div>

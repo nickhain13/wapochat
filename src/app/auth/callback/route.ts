@@ -9,11 +9,17 @@ export async function GET(request: Request) {
 
   const supabase = await createClient()
 
+  const next = searchParams.get('next') || '/'
+
   if (code) {
     await supabase.auth.exchangeCodeForSession(code)
   } else if (token_hash && type) {
     await supabase.auth.verifyOtp({ token_hash, type: type as 'email' | 'magiclink' | 'recovery' | 'invite' })
   }
 
-  return NextResponse.redirect(`${origin}/`)
+  if (type === 'recovery') {
+    return NextResponse.redirect(`${origin}/set-password`)
+  }
+
+  return NextResponse.redirect(`${origin}${next}`)
 }

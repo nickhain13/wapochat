@@ -7,13 +7,14 @@ import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Sidebar from '@/components/sidebar/Sidebar'
 import ChatWindow from '@/components/chat/ChatWindow'
-import { Hash } from 'lucide-react'
+import { Hash, Menu } from 'lucide-react'
 
 export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<Profile | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const fetchData = useCallback(async () => {
     const supabase = createClient()
@@ -67,17 +68,26 @@ export default function HomePage() {
         selectedGroupId={selectedGroup?.id || null}
         onSelectGroup={setSelectedGroup}
         onGroupsChanged={fetchData}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       <main className="flex-1 flex flex-col min-w-0">
         {selectedGroup ? (
           <>
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-800 bg-gray-900/50">
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-800 bg-gray-900/50">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden text-gray-400 hover:text-white transition-colors flex-shrink-0 -ml-1 p-1"
+                aria-label="Menü öffnen"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
               <span className="text-2xl">{selectedGroup.icon}</span>
-              <div>
-                <h2 className="text-white font-semibold">{selectedGroup.name}</h2>
+              <div className="min-w-0">
+                <h2 className="text-white font-semibold truncate">{selectedGroup.name}</h2>
                 {selectedGroup.description && (
-                  <p className="text-gray-500 text-xs">{selectedGroup.description}</p>
+                  <p className="text-gray-500 text-xs truncate">{selectedGroup.description}</p>
                 )}
               </div>
             </div>
@@ -91,6 +101,13 @@ export default function HomePage() {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden absolute top-4 left-4 text-gray-400 hover:text-white transition-colors p-1"
+              aria-label="Menü öffnen"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4">
               <Hash className="w-8 h-8 text-gray-600" />
             </div>
