@@ -7,12 +7,12 @@ import { createClient } from '@/lib/supabase/client'
 import { Film } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-type Mode = 'password' | 'magic' | 'reset'
+type Mode = 'login' | 'magic' | 'reset'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<Mode>('password')
+  const [mode, setMode] = useState<Mode>('login')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -30,7 +30,7 @@ export default function LoginPage() {
     setError('')
     const supabase = createClient()
 
-    if (mode === 'password') {
+    if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setError('E-Mail oder Passwort falsch.')
@@ -38,20 +38,13 @@ export default function LoginPage() {
         router.push('/')
         router.refresh()
       }
-    } else if (mode === 'magic') {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-      })
-      if (error) {
-        setError('Fehler beim Senden. Bitte versuche es erneut.')
-      } else {
-        setSent(true)
-      }
     } else {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/set-password`,
-      })
+      const redirectTo = mode === 'reset'
+        ? `${window.location.origin}/auth/callback?next=/set-password`
+        : `${window.location.origin}/auth/callback`
+      const { error } = mode === 'reset'
+        ? await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+        : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } })
       if (error) {
         setError('Fehler beim Senden. Bitte versuche es erneut.')
       } else {
@@ -59,6 +52,22 @@ export default function LoginPage() {
       }
     }
     setLoading(false)
+  }
+
+  const titles: Record<Mode, string> = {
+    login: 'Anmelden',
+    magic: 'Link per E-Mail',
+    reset: 'Passwort zurücksetzen',
+  }
+  const subtitles: Record<Mode, string> = {
+    login: 'Melde dich mit E-Mail und Passwort an.',
+    magic: 'Wir schicken dir einen Anmeldelink — kein Passwort nötig.',
+    reset: 'Du bekommst einen Reset-Link per E-Mail.',
+  }
+  const buttonLabels: Record<Mode, string> = {
+    login: 'Anmelden',
+    magic: 'Link senden',
+    reset: 'Reset-Link senden',
   }
 
   return (
@@ -83,110 +92,81 @@ export default function LoginPage() {
                 Schau in dein Postfach bei <span className="text-amber-400">{email}</span> und klicke auf den Link.
               </p>
               <button
-                onClick={() => switchMode('password')}
+                onClick={() => switchMode('login')}
                 className="mt-4 text-amber-400 text-sm hover:text-amber-300 transition-colors"
               >
-                Zurück zur Anmeldung
+                ← Zurück zur Anmeldung
               </button>
             </div>
           ) : (
-            <>
-              {/* Tabs */}
-              {mode !== 'reset' && (
-                <div className="flex bg-gray-800 rounded-xl p-1 mb-5">
-                  <button
-                    type="button"
-                    onClick={() => switchMode('password')}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      mode === 'password'
-                        ? 'bg-gray-700 text-white'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    Passwort
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchMode('magic')}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      mode === 'magic'
-                        ? 'bg-gray-700 text-white'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    Link per E-Mail
-                  </button>
+            <form onSubmit={handleSubmit}>
+              <h2 className="text-white font-semibold mb-1">{titles[mode]}</h2>
+              <p className="text-gray-500 text-sm mb-5">{subtitles[mode]}</p>
+
+              <label className="block text-gray-400 text-sm mb-1.5">E-Mail</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="name@beispiel.de"
+                required
+                autoComplete="email"
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm mb-4 outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
+              />
+
+              {mode === 'login' && (
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1.5">Passwort</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    autoComplete="current-password"
+                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm mb-4 outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
+                  />
                 </div>
               )}
 
-              <form onSubmit={handleSubmit}>
-                {mode === 'reset' && (
-                  <h2 className="text-white font-semibold mb-1">Passwort zurücksetzen</h2>
-                )}
-                <p className="text-gray-500 text-sm mb-5">
-                  {mode === 'password' && 'Melde dich mit E-Mail und Passwort an.'}
-                  {mode === 'magic' && 'Wir schicken dir einen Anmeldelink per E-Mail.'}
-                  {mode === 'reset' && 'Du bekommst einen Reset-Link per E-Mail.'}
-                </p>
+              {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 
-                <label className="block text-gray-400 text-sm mb-1.5">E-Mail</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="name@beispiel.de"
-                  required
-                  autoComplete="email"
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm mb-4 outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
-                />
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950 font-semibold rounded-lg py-2.5 text-sm transition-colors"
+              >
+                {loading ? 'Bitte warten...' : buttonLabels[mode]}
+              </button>
 
-                {mode === 'password' && (
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-1.5">Passwort</label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                      autoComplete="current-password"
-                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm mb-4 outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
-                    />
-                  </div>
-                )}
-
-                {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950 font-semibold rounded-lg py-2.5 text-sm transition-colors"
-                >
-                  {loading ? 'Bitte warten...' : mode === 'password' ? 'Anmelden' : 'Link senden'}
-                </button>
-
-                <div className="text-center mt-4">
-                  {mode === 'password' && (
-                    <button
-                      type="button"
-                      onClick={() => switchMode('reset')}
-                      className="text-gray-500 hover:text-gray-400 text-xs transition-colors"
-                    >
+              {/* Navigation */}
+              <div className="flex flex-col items-center gap-2 mt-4">
+                {mode === 'login' && (
+                  <>
+                    <button type="button" onClick={() => switchMode('magic')}
+                      className="text-gray-500 hover:text-gray-300 text-xs transition-colors">
+                      Neu hier? Per E-Mail-Link anmelden →
+                    </button>
+                    <button type="button" onClick={() => switchMode('reset')}
+                      className="text-gray-600 hover:text-gray-400 text-xs transition-colors">
                       Passwort vergessen?
                     </button>
-                  )}
-                  {mode === 'reset' && (
-                    <button
-                      type="button"
-                      onClick={() => switchMode('password')}
-                      className="text-gray-500 hover:text-gray-400 text-xs transition-colors"
-                    >
-                      Zurück zur Anmeldung
-                    </button>
-                  )}
-                </div>
-              </form>
-            </>
+                  </>
+                )}
+                {mode === 'magic' && (
+                  <button type="button" onClick={() => switchMode('login')}
+                    className="text-gray-500 hover:text-gray-300 text-xs transition-colors">
+                    ← Bereits registriert? Anmelden
+                  </button>
+                )}
+                {mode === 'reset' && (
+                  <button type="button" onClick={() => switchMode('login')}
+                    className="text-gray-500 hover:text-gray-300 text-xs transition-colors">
+                    ← Zurück zur Anmeldung
+                  </button>
+                )}
+              </div>
+            </form>
           )}
         </div>
 
