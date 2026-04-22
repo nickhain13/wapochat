@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X, Users } from 'lucide-react'
+import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X, Users, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Avatar from '@/components/ui/Avatar'
 import CreateGroupModal from './CreateGroupModal'
 import InviteModal from './InviteModal'
 import MembersModal from './MembersModal'
+import NotificationSettings from './NotificationSettings'
 import { useRouter } from 'next/navigation'
 
 interface TreeNode {
@@ -110,6 +111,7 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
   const [parentGroup, setParentGroup] = useState<Group | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const [showMembers, setShowMembers] = useState(false)
+  const [showNotifSettings, setShowNotifSettings] = useState(false)
   const isAdmin = currentUser.role === 'admin'
   const router = useRouter()
   const supabase = createClient()
@@ -214,6 +216,13 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
             <p className="text-gray-500 text-xs">{isAdmin ? 'Admin' : 'Mitglied'}</p>
           </div>
           <button
+            onClick={() => setShowNotifSettings(true)}
+            className="text-gray-600 hover:text-amber-400 transition-colors flex-shrink-0"
+            title="Benachrichtigungen"
+          >
+            <Bell className="w-4 h-4" />
+          </button>
+          <button
             onClick={handleLogout}
             className="text-gray-600 hover:text-red-400 transition-colors flex-shrink-0"
             title="Abmelden"
@@ -259,6 +268,14 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
 
       {showMembers && (
         <MembersModal onClose={() => setShowMembers(false)} />
+      )}
+
+      {showNotifSettings && (
+        <NotificationSettings
+          userId={currentUser.id}
+          groups={groups}
+          onClose={() => setShowNotifSettings(false)}
+        />
       )}
     </>
   )

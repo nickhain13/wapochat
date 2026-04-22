@@ -22,7 +22,9 @@ let initialized = false
 
 export default function NotificationBanner({ userId }: Props) {
   const [state, setState] = useState<State>('loading')
-  const [dismissed, setDismissed] = useState(false)
+  const [dismissed, setDismissed] = useState(
+    () => typeof window !== 'undefined' && !!localStorage.getItem('notif-banner-dismissed')
+  )
 
   useEffect(() => {
     const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID
@@ -89,7 +91,7 @@ export default function NotificationBanner({ userId }: Props) {
         <p className="text-amber-200 flex-1 min-w-0">
           Tippe auf <strong>Teilen</strong> → <strong>Zum Home-Bildschirm</strong>, um Benachrichtigungen zu aktivieren.
         </p>
-        <button onClick={() => setDismissed(true)} className="text-amber-400/60 hover:text-amber-400 flex-shrink-0">
+        <button onClick={() => { localStorage.setItem('notif-banner-dismissed', '1'); setDismissed(true) }} className="text-amber-400/60 hover:text-amber-400 flex-shrink-0">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -106,7 +108,7 @@ export default function NotificationBanner({ userId }: Props) {
       >
         Aktivieren
       </button>
-      <button onClick={() => setDismissed(true)} className="text-amber-400/60 hover:text-amber-400 flex-shrink-0">
+      <button onClick={() => { localStorage.setItem('notif-banner-dismissed', '1'); setDismissed(true) }} className="text-amber-400/60 hover:text-amber-400 flex-shrink-0">
         <X className="w-4 h-4" />
       </button>
     </div>
