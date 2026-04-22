@@ -9,7 +9,13 @@
       "Bash(npm run *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(vercel whoami *)",
+      "Bash(vercel ls *)",
+      "WebSearch",
+      "WebFetch(domain:commons.wikimedia.org)",
+      "Bash(node -e \"require\\('sharp'\\)\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X } from 'lucide-react'
+import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Avatar from '@/components/ui/Avatar'
 import CreateGroupModal from './CreateGroupModal'
 import InviteModal from './InviteModal'
+import MembersModal from './MembersModal'
 import { useRouter } from 'next/navigation'
 
 interface TreeNode {
@@ -65,7 +66,7 @@ function GroupNode({ node, selectedGroupId, onSelectGroup, onAddSub, isAdmin }: 
           <span className="text-sm font-medium truncate">{node.group.name}</span>
         </button>
 
-        {isAdmin && node.depth < 2 && (
+        {node.depth < 2 && (
           <button
             onClick={() => onAddSub(node.group)}
             className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-600 hover:text-amber-400 transition-all flex-shrink-0"
@@ -108,6 +109,7 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [parentGroup, setParentGroup] = useState<Group | null>(null)
   const [showInvite, setShowInvite] = useState(false)
+  const [showMembers, setShowMembers] = useState(false)
   const isAdmin = currentUser.role === 'admin'
   const router = useRouter()
   const supabase = createClient()
@@ -158,15 +160,13 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
       <div className="flex-1 overflow-y-auto p-3 space-y-0.5" style={{ scrollbarWidth: 'none' }}>
         <div className="flex items-center justify-between px-2 py-1.5 mb-1">
           <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Gruppen</span>
-          {isAdmin && (
-            <button
-              onClick={handleCreateTop}
-              className="text-gray-600 hover:text-amber-400 transition-colors"
-              title="Neue Gruppe"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            onClick={handleCreateTop}
+            className="text-gray-600 hover:text-amber-400 transition-colors"
+            title="Neue Gruppe"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
 
         {tree.map(node => (
@@ -189,13 +189,22 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
 
       <div className="p-3 border-t border-gray-800 space-y-1">
         {isAdmin && (
-          <button
-            onClick={() => setShowInvite(true)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors text-left"
-          >
-            <UserPlus className="w-4 h-4 text-amber-400" />
-            <span className="text-sm">Person einladen</span>
-          </button>
+          <>
+            <button
+              onClick={() => setShowMembers(true)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors text-left"
+            >
+              <Users className="w-4 h-4 text-amber-400" />
+              <span className="text-sm">Mitglieder verwalten</span>
+            </button>
+            <button
+              onClick={() => setShowInvite(true)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors text-left"
+            >
+              <UserPlus className="w-4 h-4 text-amber-400" />
+              <span className="text-sm">Person einladen</span>
+            </button>
+          </>
         )}
 
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
@@ -246,6 +255,10 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
           groups={groups}
           onClose={() => setShowInvite(false)}
         />
+      )}
+
+      {showMembers && (
+        <MembersModal onClose={() => setShowMembers(false)} />
       )}
     </>
   )

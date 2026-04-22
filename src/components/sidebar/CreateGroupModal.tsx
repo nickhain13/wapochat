@@ -54,7 +54,6 @@ export default function CreateGroupModal({ userId, parentGroup, allGroups, onClo
     }
 
     if (group) {
-      await supabase.from('group_members').insert({ group_id: group.id, user_id: userId })
       onCreated()
       onClose()
     }

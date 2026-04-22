@@ -7,6 +7,12 @@ const geist = Geist({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "WaPoChat – Filmproduktion",
   description: "Internes Kommunikationstool für die Filmproduktion",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "WaPoChat",
+  },
 };
 
 export const viewport: Viewport = {

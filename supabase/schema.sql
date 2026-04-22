@@ -20,6 +20,7 @@ create table public.groups (
   name text not null,
   description text,
   icon text default '🎬',
+  parent_id uuid references public.groups(id) on delete cascade,
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz default now()
 );
@@ -82,9 +83,12 @@ create policy "Profil anlegen" on public.profiles for insert with check (auth.ui
 
 -- Policies: Groups
 create policy "Mitglieder sehen ihre Gruppen" on public.groups for select
-  using (exists (select 1 from public.group_members where group_id = id and user_id = auth.uid()));
-create policy "Admins erstellen Gruppen" on public.groups for insert
-  with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+  using (
+    exists (select 1 from public.group_members where group_id = id and user_id = auth.uid())
+    or exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
+create policy "Angemeldete erstellen Gruppen" on public.groups for insert
+  with check (auth.uid() is not null);
 create policy "Admins bearbeiten Gruppen" on public.groups for update
   using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
 create policy "Admins löschen Gruppen" on public.groups for delete
@@ -120,12 +124,29 @@ create policy "Admins sehen Einladungen" on public.invitations for select
 create policy "Admins erstellen Einladungen" on public.invitations for insert
   with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
 
--- Profil automatisch bei Registrierung erstellen
+-- Profil automatisch bei Registrierung erstellen + Gruppe aus Einladung zuweisen
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  inv record;
 begin
   insert into public.profiles (id, email, display_name)
   values (new.id, new.email, split_part(new.email, '@', 1));
+
+  select * into inv from public.invitations
+  where lower(email) = lower(new.email)
+    and used_at is null
+    and group_id is not null
+  order by created_at desc
+  limit 1;
+
+  if found then
+    insert into public.group_members (group_id, user_id)
+    values (inv.group_id, new.id)
+    on conflict do nothing;
+    update public.invitations set used_at = now() where id = inv.id;
+  end if;
+
   return new;
 end;
 $$;
@@ -133,6 +154,23 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- Gruppenersteller automatisch als Mitglied hinzufügen
+create or replace function public.add_creator_to_group()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.created_by is not null then
+    insert into public.group_members (group_id, user_id)
+    values (new.id, new.created_by)
+    on conflict do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger on_group_created
+  after insert on public.groups
+  for each row execute procedure public.add_creator_to_group();
 
 -- Storage Bucket für Bilder
 insert into storage.buckets (id, name, public) values ('chat-images', 'chat-images', true);

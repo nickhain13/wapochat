@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Sidebar from '@/components/sidebar/Sidebar'
 import ChatWindow from '@/components/chat/ChatWindow'
+import NotificationBanner from '@/components/NotificationBanner'
 import { Hash, Menu } from 'lucide-react'
 
 export default function HomePage() {
@@ -73,6 +74,8 @@ export default function HomePage() {
       />
 
       <main className="flex-1 flex flex-col min-w-0">
+        <NotificationBanner userId={currentUser.id} />
+
         {selectedGroup ? (
           <>
             <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-800 bg-gray-900/50">
@@ -113,9 +116,7 @@ export default function HomePage() {
             </div>
             <h2 className="text-white font-semibold mb-2">Keine Gruppe ausgewählt</h2>
             <p className="text-gray-500 text-sm max-w-xs">
-              {currentUser.role === 'admin'
-                ? 'Erstelle deine erste Gruppe über das + in der Sidebar.'
-                : 'Du bist noch in keiner Gruppe. Warte auf eine Einladung des Admins.'}
+              Erstelle eine neue Gruppe über das + in der Sidebar oder warte auf eine Einladung.
             </p>
           </div>
         )}
