@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PWA Debug</title>
+  <style>
+    body { font-family: monospace; background: #030712; color: #e5e7eb; padding: 16px; font-size: 13px; }
+    h1 { color: #f59e0b; margin-bottom: 16px; }
+    h2 { color: #f59e0b; font-size: 14px; margin: 20px 0 8px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+    td { padding: 7px 8px; border-bottom: 1px solid #1f2937; vertical-align: top; }
+    td:first-child { color: #9ca3af; white-space: nowrap; }
+    td:last-child { color: #d1d5db; word-break: break-all; }
+    .log { background: #111827; border-radius: 8px; padding: 12px; }
+    .log div { color: #6ee7b7; margin-bottom: 4px; }
+    .ok { color: #34d399; }
+    .err { color: #f87171; }
+    .warn { color: #fbbf24; }
+    details summary { color: #9ca3af; cursor: pointer; margin-top: 16px; }
+    details div { color: #4b5563; margin-top: 8px; word-break: break-all; }
+    button { background: #f59e0b; color: #030712; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 16px; width: 100%; }
+  </style>
+</head>
+<body>
+  <h1>PWA Debug</h1>
+  <table id="table"></table>
+
+  <h2>Log</h2>
+  <div class="log" id="log"><span style="color:#4b5563">Wird geladen...</span></div>
+
+  <button id="installBtn" style="display:none">App installieren (Test)</button>
+
+  <details>
+    <summary>User Agent</summary>
+    <div id="ua"></div>
+  </details>
+
+  <script>
+    const logs = [];
+    const rows = {};
+    let deferredPrompt = null;
+
+    function log(msg, type = 'info') {
+      logs.push({ msg, type });
+      render();
+    }
+
+    function setRow(key, icon, detail) {
+      rows[key] = { icon, detail };
+      render();
+    }
+
+    function render() {
+      const table = document.getElementById('table');
+      table.innerHTML = Object.entries(rows).map(([k, v]) =>
+        `<tr><td>${k}</td><td style="font-size:16px">${v.icon}</td><td>${v.detail}</td></tr>`
+      ).join('');
+
+      const logEl = document.getElementById('log');
+      if (logs.length === 0) {
+        logEl.innerHTML = '<span style="color:#4b5563">Wird geladen...</span>';
+      } else {
+        logEl.innerHTML = logs.map(l => {
+          const cls = l.type === 'ok' ? 'ok' : l.type === 'err' ? 'err' : l.type === 'warn' ? 'warn' : '';
+          return `<div class="${cls}">${l.msg}</div>`;
+        }).join('');
+      }
+    }
+
+    // User Agent
+    document.getElementById('ua').textContent = navigator.userAgent;
+
+    // HTTPS
+    const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
+    setRow('HTTPS', isHttps ? '✅' : '❌', isHttps ? location.origin : 'FEHLER – kein HTTPS!');
+    log(isHttps ? 'HTTPS: ok' : 'FEHLER: kein HTTPS!', isHttps ? 'ok' : 'err');
+
+    // Display Mode
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const displayMode = isStandalone ? 'standalone ✅ (als App installiert!)' : 'browser (nicht installiert)';
+    setRow('Display Mode', '📱', displayMode);
+    log('Display Mode: ' + displayMode, isStandalone ? 'ok' : 'warn');
+
+    // Service Worker
+    if ('serviceWorker' in navigator) {
+      setRow('SW Support', '✅', 'vorhanden');
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        if (regs.length === 0) {
+          setRow('SW Status', '❌', 'NICHT registriert');
+          log('SW: NICHT registriert! (0 Registrierungen)', 'err');
+        } else {
+          regs.forEach(reg => {
+            const state = reg.active?.state || reg.installing?.state || reg.waiting?.state || 'unbekannt';
+            const scope = reg.scope;
+            setRow('SW Status', '✅', `registriert, scope: ${scope}, state: ${state}`);
+            log(`SW: registriert – scope=${scope}, state=${state}`, 'ok');
+          });
+        }
+      });
+
+      // Versuche Registrierung
+      navigator.serviceWorker.register('/OneSignalSDKWorker.js', { scope: '/' })
+        .then(reg => {
+          log('SW Registrierung jetzt: erfolgreich, scope=' + reg.scope, 'ok');
+        })
+        .catch(err => {
+          log('SW Registrierung jetzt: FEHLER – ' + err, 'err');
+        });
+    } else {
+      setRow('SW Support', '❌', 'nicht unterstützt');
+      log('Service Worker nicht unterstützt!', 'err');
+    }
+
+    // Manifest
+    fetch('/manifest.json')
+      .then(r => r.json())
+      .then(data => {
+        setRow('Manifest', '✅', `display=${data.display}, icons=${data.icons?.length}, start_url=${data.start_url}`);
+        log(`Manifest OK: display=${data.display}, icons=${data.icons?.length}`, 'ok');
+        data.icons?.forEach((icon, i) => {
+          log(`  Icon ${i+1}: ${icon.src} (${icon.sizes}) purpose=${icon.purpose || 'any'}`, 'info');
+        });
+      })
+      .catch(err => {
+        setRow('Manifest', '❌', 'FEHLER: ' + err);
+        log('Manifest fetch FEHLER: ' + err, 'err');
+      });
+
+    // beforeinstallprompt
+    setRow('Install-Event', '⏳', 'warte...');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      setRow('Install-Event', '✅', 'gefeuert! App ist installierbar.');
+      log('beforeinstallprompt gefeuert – App ist installierbar!', 'ok');
+      document.getElementById('installBtn').style.display = 'block';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      setRow('App Installed', '🎉', 'App wurde gerade installiert!');
+      log('appinstalled Event!', 'ok');
+    });
+
+    setTimeout(() => {
+      if (!deferredPrompt) {
+        setRow('Install-Event', '⚠️', 'nach 8s nicht gefeuert – Kriterien nicht erfüllt');
+        log('Nach 8s: beforeinstallprompt NICHT gefeuert', 'warn');
+        log('Mögliche Ursachen: SW-Problem, Manifest-Problem, schon installiert, oder Chrome braucht mehr Zeit', 'warn');
+      }
+    }, 8000);
+
+    // Install button
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      log('Install Ergebnis: ' + outcome, outcome === 'accepted' ? 'ok' : 'warn');
+      deferredPrompt = null;
+    });
+  </script>
+</body>
+</html>
