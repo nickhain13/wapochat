@@ -34,12 +34,14 @@ interface GroupNodeProps {
   onSelectGroup: (group: Group) => void
   onAddSub: (parent: Group) => void
   isAdmin: boolean
+  unreadCounts: Record<string, number>
 }
 
-function GroupNode({ node, selectedGroupId, onSelectGroup, onAddSub, isAdmin }: GroupNodeProps) {
+function GroupNode({ node, selectedGroupId, onSelectGroup, onAddSub, isAdmin, unreadCounts }: GroupNodeProps) {
   const [open, setOpen] = useState(true)
   const hasChildren = node.children.length > 0
   const isSelected = selectedGroupId === node.group.id
+  const unread = unreadCounts[node.group.id] || 0
 
   const indent = node.depth * 12
 
@@ -65,7 +67,12 @@ function GroupNode({ node, selectedGroupId, onSelectGroup, onAddSub, isAdmin }: 
           onClick={() => onSelectGroup(node.group)}
         >
           <span className="text-base flex-shrink-0">{node.group.icon}</span>
-          <span className="text-sm font-medium truncate">{node.group.name}</span>
+          <span className="text-sm font-medium truncate flex-1">{node.group.name}</span>
+          {unread > 0 && !isSelected && (
+            <span className="flex-shrink-0 min-w-[18px] h-[18px] bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 leading-none">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
         </button>
 
         {node.depth < 2 && (
@@ -89,6 +96,7 @@ function GroupNode({ node, selectedGroupId, onSelectGroup, onAddSub, isAdmin }: 
               onSelectGroup={onSelectGroup}
               onAddSub={onAddSub}
               isAdmin={isAdmin}
+              unreadCounts={unreadCounts}
             />
           ))}
         </div>
@@ -103,11 +111,12 @@ interface Props {
   selectedGroupId: string | null
   onSelectGroup: (group: Group) => void
   onGroupsChanged: () => void
+  unreadCounts: Record<string, number>
   isOpen: boolean
   onClose: () => void
 }
 
-export default function Sidebar({ groups, currentUser, selectedGroupId, onSelectGroup, onGroupsChanged, isOpen, onClose }: Props) {
+export default function Sidebar({ groups, currentUser, selectedGroupId, onSelectGroup, onGroupsChanged, unreadCounts, isOpen, onClose }: Props) {
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [parentGroup, setParentGroup] = useState<Group | null>(null)
   const [showInvite, setShowInvite] = useState(false)
@@ -181,6 +190,7 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
             onSelectGroup={handleSelectGroup}
             onAddSub={handleAddSub}
             isAdmin={isAdmin}
+            unreadCounts={unreadCounts}
           />
         ))}
 

@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Sidebar from '@/components/sidebar/Sidebar'
@@ -14,21 +14,41 @@ export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<Profile | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const selectedGroupRef = useRef<Group | null>(null)
+  const currentUserRef = useRef<Profile | null>(null)
+
+  useEffect(() => { selectedGroupRef.current = selectedGroup }, [selectedGroup])
+  useEffect(() => { currentUserRef.current = currentUser }, [currentUser])
+
+  async function markAsRead(userId: string, groupId: string) {
+    const supabase = createClient()
+    await supabase.from('last_read').upsert(
+      { user_id: userId, group_id: groupId, last_read_at: new Date().toISOString() },
+      { onConflict: 'user_id,group_id' }
+    )
+    setUnreadCounts(prev => ({ ...prev, [groupId]: 0 }))
+  }
+
+  function handleSelectGroup(group: Group) {
+    setSelectedGroup(group)
+    if (currentUserRef.current) {
+      markAsRead(currentUserRef.current.id, group.id)
+    }
+  }
 
   const fetchData = useCallback(async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [{ data: profile }, { data: memberGroups }] = await Promise.all([
+    const [{ data: profile }, { data: memberGroups }, { data: unreadData }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase
-        .from('group_members')
-        .select('groups(*)')
-        .eq('user_id', user.id)
-        .order('joined_at', { ascending: true }),
+      supabase.from('group_members').select('groups(*)').eq('user_id', user.id).order('joined_at', { ascending: true }),
+      supabase.rpc('get_unread_counts', { p_user_id: user.id }),
     ])
 
     if (profile) setCurrentUser(profile)
@@ -38,18 +58,50 @@ export default function HomePage() {
         .map((m: { groups: Group | Group[] | null }) => m.groups)
         .filter((g): g is Group => g !== null && !Array.isArray(g))
       setGroups(groupList)
-      if (groupList.length > 0 && !selectedGroup) {
-        setSelectedGroup(groupList[0])
+      if (groupList.length > 0 && !selectedGroupRef.current) {
+        const first = groupList[0]
+        setSelectedGroup(first)
+        markAsRead(user.id, first.id)
       }
     }
 
+    if (unreadData) {
+      const counts: Record<string, number> = {}
+      unreadData.forEach((row: { group_id: string; unread_count: number }) => {
+        counts[row.group_id] = Number(row.unread_count)
+      })
+      setUnreadCounts(counts)
+    }
+
     setLoading(false)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Real-time: neue Nachrichten → Unread-Badge aktualisieren
+  useEffect(() => {
+    if (!currentUser) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel('unread-tracker')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new as { group_id: string; user_id: string }
+        if (msg.user_id === currentUserRef.current?.id) return
+        if (msg.group_id === selectedGroupRef.current?.id) {
+          markAsRead(currentUserRef.current!.id, msg.group_id)
+          return
+        }
+        setUnreadCounts(prev => ({
+          ...prev,
+          [msg.group_id]: (prev[msg.group_id] || 0) + 1,
+        }))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [currentUser])
 
   if (loading) {
     return (
@@ -67,8 +119,9 @@ export default function HomePage() {
         groups={groups}
         currentUser={currentUser}
         selectedGroupId={selectedGroup?.id || null}
-        onSelectGroup={setSelectedGroup}
+        onSelectGroup={handleSelectGroup}
         onGroupsChanged={fetchData}
+        unreadCounts={unreadCounts}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
