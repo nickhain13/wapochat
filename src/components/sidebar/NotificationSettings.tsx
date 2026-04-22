@@ -37,16 +37,20 @@ export default function NotificationSettings({ userId, groups, onClose }: Props)
 
   useEffect(() => {
     async function load() {
-      await ensureOneSignal(userId)
-      const subscribed = 'Notification' in window && OneSignal.Notifications?.permission
-      setGlobalEnabled(!!subscribed)
+      try {
+        await ensureOneSignal(userId)
+        const subscribed = 'Notification' in window && !!OneSignal.Notifications?.permission
+        setGlobalEnabled(subscribed)
+      } catch {}
 
-      const { data } = await supabase
-        .from('notification_mutes')
-        .select('group_id')
-        .eq('user_id', userId)
+      try {
+        const { data } = await supabase
+          .from('notification_mutes')
+          .select('group_id')
+          .eq('user_id', userId)
+        setMutedGroupIds(new Set(data?.map(m => m.group_id) || []))
+      } catch {}
 
-      setMutedGroupIds(new Set(data?.map(m => m.group_id) || []))
       setLoading(false)
     }
     load()
