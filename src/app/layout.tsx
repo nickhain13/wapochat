@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const geist = Geist({ subsets: ["latin"] });
 
@@ -24,7 +25,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de" className="h-full">
-      <body className={`${geist.className} h-full bg-gray-950 antialiased`}>{children}</body>
+      <body className={`${geist.className} h-full bg-gray-950 antialiased`}>
+        <ServiceWorkerRegister />
+        {children}
+      </body>
     </html>
   );
 }

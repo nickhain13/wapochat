@@ -80,12 +80,6 @@ export default function HomePage() {
     fetchData()
   }, [fetchData])
 
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/OneSignalSDKWorker.js', { scope: '/' }).catch(() => {})
-    }
-  }, [])
-
   // Real-time: neue Nachrichten → Unread-Badge aktualisieren
   useEffect(() => {
     if (!currentUser) return
