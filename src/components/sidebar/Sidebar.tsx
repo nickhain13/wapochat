@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X, Users, Bell } from 'lucide-react'
+import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X, Users, Bell, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Avatar from '@/components/ui/Avatar'
@@ -9,6 +9,7 @@ import CreateGroupModal from './CreateGroupModal'
 import InviteModal from './InviteModal'
 import MembersModal from './MembersModal'
 import NotificationSettings from './NotificationSettings'
+import ProfileModal from './ProfileModal'
 import { useRouter } from 'next/navigation'
 
 interface TreeNode {
@@ -112,6 +113,7 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
   const [showInvite, setShowInvite] = useState(false)
   const [showMembers, setShowMembers] = useState(false)
   const [showNotifSettings, setShowNotifSettings] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
   const isAdmin = currentUser.role === 'admin'
   const router = useRouter()
   const supabase = createClient()
@@ -212,7 +214,13 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
           <Avatar name={currentUser.display_name || currentUser.email} size="sm" />
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-medium truncate">{currentUser.display_name || currentUser.email.split('@')[0]}</p>
+            <button
+              onClick={() => setShowProfile(true)}
+              className="flex items-center gap-1.5 group text-left"
+            >
+              <p className="text-white text-sm font-medium truncate">{currentUser.display_name || currentUser.email.split('@')[0]}</p>
+              <Pencil className="w-3 h-3 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            </button>
             <p className="text-gray-500 text-xs">{isAdmin ? 'Admin' : 'Mitglied'}</p>
           </div>
           <button
@@ -275,6 +283,14 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
           userId={currentUser.id}
           groups={groups}
           onClose={() => setShowNotifSettings(false)}
+        />
+      )}
+
+      {showProfile && (
+        <ProfileModal
+          currentUser={currentUser}
+          onSaved={onGroupsChanged}
+          onClose={() => setShowProfile(false)}
         />
       )}
     </>

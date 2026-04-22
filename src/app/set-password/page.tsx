@@ -8,6 +8,7 @@ import { Film } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 export default function SetPasswordPage() {
+  const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,13 +29,19 @@ export default function SetPasswordPage() {
     setError('')
 
     const supabase = createClient()
-    const { error } = await supabase.auth.updateUser({ password })
-    if (error) {
+    const { data: { user }, error: authError } = await supabase.auth.updateUser({ password })
+    if (authError || !user) {
       setError('Fehler beim Speichern. Bitte versuche es erneut.')
-    } else {
-      router.push('/')
-      router.refresh()
+      setLoading(false)
+      return
     }
+
+    if (displayName.trim()) {
+      await supabase.from('profiles').update({ display_name: displayName.trim() }).eq('id', user.id)
+    }
+
+    router.push('/')
+    router.refresh()
     setLoading(false)
   }
 
@@ -53,10 +60,23 @@ export default function SetPasswordPage() {
 
         <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
           <form onSubmit={handleSubmit}>
-            <h2 className="text-white font-semibold mb-1">Neues Passwort setzen</h2>
-            <p className="text-gray-500 text-sm mb-5">Wähle ein Passwort, mit dem du dich künftig anmeldest.</p>
+            <h2 className="text-white font-semibold mb-1">Willkommen bei WaPoChat</h2>
+            <p className="text-gray-500 text-sm mb-5">Gib deinen Namen ein und wähle ein Passwort.</p>
 
-            <label className="block text-gray-400 text-sm mb-1.5">Neues Passwort</label>
+            <label className="block text-gray-400 text-sm mb-1.5">Dein Name *</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              required
+              maxLength={40}
+              placeholder="z.B. Anna Müller"
+              autoFocus
+              autoComplete="name"
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm mb-4 outline-none focus:border-amber-500 transition-colors placeholder:text-gray-600"
+            />
+
+            <label className="block text-gray-400 text-sm mb-1.5">Passwort *</label>
             <input
               type="password"
               value={password}
