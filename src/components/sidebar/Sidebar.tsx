@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X, Users, Bell, Pencil } from 'lucide-react'
+import { Plus, UserPlus, LogOut, Film, ChevronRight, ChevronDown, X, Users, Bell, Pencil, Download } from 'lucide-react'
+import { useInstallPrompt } from '@/hooks/useInstallPrompt'
 import { createClient } from '@/lib/supabase/client'
 import { Group, Profile } from '@/types'
 import Avatar from '@/components/ui/Avatar'
@@ -124,6 +125,7 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
   const [showNotifSettings, setShowNotifSettings] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const isAdmin = currentUser.role === 'admin'
+  const { canInstall, install } = useInstallPrompt()
   const router = useRouter()
   const supabase = createClient()
 
@@ -202,6 +204,15 @@ export default function Sidebar({ groups, currentUser, selectedGroupId, onSelect
       </div>
 
       <div className="p-3 border-t border-gray-800 space-y-1">
+        {canInstall && (
+          <button
+            onClick={install}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors text-left"
+          >
+            <Download className="w-4 h-4 text-amber-400" />
+            <span className="text-sm">App installieren</span>
+          </button>
+        )}
         {isAdmin && (
           <>
             <button
