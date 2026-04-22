@@ -39,9 +39,8 @@ export default function NotificationSettings({ userId, groups, onClose }: Props)
     async function load() {
       try {
         await ensureOneSignal(userId)
-        const subscribed = 'Notification' in window && !!OneSignal.Notifications?.permission
-        setGlobalEnabled(subscribed)
       } catch {}
+      setGlobalEnabled('Notification' in window && Notification.permission === 'granted')
 
       try {
         const { data } = await supabase
@@ -69,7 +68,7 @@ export default function NotificationSettings({ userId, groups, onClose }: Props)
           await OneSignal.User.PushSubscription.optIn()
           OneSignal.login(userId)
         }
-        setGlobalEnabled(!!granted)
+        setGlobalEnabled(Notification.permission === 'granted')
       }
     } catch {}
     setToggling(null)

@@ -53,8 +53,7 @@ export default function NotificationBanner({ userId }: Props) {
         } catch {}
       }
 
-      const permission = OneSignal.Notifications.permission
-      if (permission) {
+      if (Notification.permission === 'granted') {
         setState('subscribed')
       } else if (Notification.permission === 'denied') {
         setState('denied')
@@ -69,8 +68,7 @@ export default function NotificationBanner({ userId }: Props) {
   async function handleEnable() {
     try {
       await OneSignal.Notifications.requestPermission()
-      const granted = OneSignal.Notifications.permission
-      setState(granted ? 'subscribed' : 'denied')
+      setState(Notification.permission === 'granted' ? 'subscribed' : 'denied')
     } catch {
       setState('denied')
     }
