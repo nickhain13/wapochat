@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
   const adminClient = createAdminClient()
   const { error: authError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback`,
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback?next=/set-password`,
   })
 
   if (authError) return NextResponse.json({ error: authError.message }, { status: 500 })

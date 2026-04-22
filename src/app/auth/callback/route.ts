@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     await supabase.auth.verifyOtp({ token_hash, type: type as 'email' | 'magiclink' | 'recovery' | 'invite' })
   }
 
-  if (type === 'recovery') {
+  if (type === 'recovery' || type === 'invite') {
     return NextResponse.redirect(`${origin}/set-password`)
   }
 
