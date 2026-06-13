@@ -14,7 +14,7 @@ export function useInstallPrompt() {
   useEffect(() => {
     // Bereits als PWA installiert / läuft standalone
     if (window.matchMedia('(display-mode: standalone)').matches) {
-      setInstalled(true)
+      queueMicrotask(() => setInstalled(true))
       return
     }
 

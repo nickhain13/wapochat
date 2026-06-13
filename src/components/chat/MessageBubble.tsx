@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(url)
@@ -15,11 +15,12 @@ const EMOJIS = ['👍', '❤️', '😂', '🔥', '✅', '👀', '🎬', '💪']
 interface Props {
   message: Message
   currentUser: Profile
-  isAdmin: boolean
+  canApprove: boolean
 }
 
-export default function MessageBubble({ message, currentUser, isAdmin }: Props) {
+export default function MessageBubble({ message, currentUser, canApprove }: Props) {
   const [showEmojis, setShowEmojis] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
   const [localReactions, setLocalReactions] = useState(message.reactions || [])
   const [approved, setApproved] = useState(message.is_approved)
   const supabase = createClient()
@@ -33,6 +34,21 @@ export default function MessageBubble({ message, currentUser, isAdmin }: Props) 
   }, {} as Record<string, number>)
 
   const myReactions = new Set(localReactions.filter(r => r.user_id === currentUser.id).map(r => r.emoji))
+
+  useEffect(() => {
+    if (!showEmojis) return
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowEmojis(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [showEmojis])
 
   async function toggleReaction(emoji: string) {
     if (myReactions.has(emoji)) {
@@ -89,6 +105,8 @@ export default function MessageBubble({ message, currentUser, isAdmin }: Props) 
                 style={{ maxHeight: '300px' }}
               />
             ) : (
+              // Remote Chat-Uploads können Video oder beliebige Supabase-URLs sein; <img> bleibt hier absichtlich flexibel.
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={message.image_url}
                 alt="Bild"
@@ -130,21 +148,21 @@ export default function MessageBubble({ message, currentUser, isAdmin }: Props) 
           </div>
         )}
 
-        <div className={`flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${isOwn ? 'flex-row-reverse' : ''}`}>
-          <div className="relative">
+        <div className={`flex items-center gap-1 mt-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity ${isOwn ? 'flex-row-reverse' : ''}`}>
+          <div className="relative" ref={pickerRef}>
             <button
               onClick={() => setShowEmojis(!showEmojis)}
-              className="p-1 rounded-lg text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-lg text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors"
             >
-              <SmilePlus className="w-4 h-4" />
+              <SmilePlus className="w-5 h-5" />
             </button>
             {showEmojis && (
-              <div className={`absolute bottom-full mb-1 flex gap-1 bg-gray-800 border border-gray-700 rounded-xl p-2 shadow-xl z-10 ${isOwn ? 'right-0' : 'left-0'}`}>
+              <div className={`absolute bottom-full mb-1 flex gap-1.5 bg-gray-800 border border-gray-700 rounded-xl p-2.5 shadow-xl z-10 ${isOwn ? 'right-0' : 'left-0'}`}>
                 {EMOJIS.map(emoji => (
                   <button
                     key={emoji}
                     onClick={() => toggleReaction(emoji)}
-                    className="hover:scale-125 transition-transform text-lg"
+                    className="hover:scale-125 transition-transform text-xl p-1 min-w-[2rem] min-h-[2rem] flex items-center justify-center"
                   >
                     {emoji}
                   </button>
@@ -153,17 +171,17 @@ export default function MessageBubble({ message, currentUser, isAdmin }: Props) 
             )}
           </div>
 
-          {isAdmin && (
+          {canApprove && (
             <button
               onClick={toggleApprove}
-              className={`p-1 rounded-lg transition-colors ${
+              className={`p-2 rounded-lg transition-colors ${
                 approved
                   ? 'text-emerald-400 hover:text-gray-400'
                   : 'text-gray-600 hover:text-emerald-400 hover:bg-gray-800'
               }`}
               title={approved ? 'Abnahme zurückziehen' : 'Abnehmen'}
             >
-              {approved ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+              {approved ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
             </button>
           )}
         </div>

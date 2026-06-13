@@ -64,11 +64,15 @@ export default function MessageInput({ groupId, userId, onSent }: Props) {
       }
     }
 
-    await supabase.from('messages').insert({
-      group_id: groupId,
-      user_id: userId,
-      content: text.trim() || null,
-      image_url: mediaUrl,
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    await fetch('/api/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ groupId, content: text.trim(), imageUrl: mediaUrl }),
     })
 
     setText('')
@@ -104,6 +108,8 @@ export default function MessageInput({ groupId, userId, onSent }: Props) {
               </div>
             </div>
           ) : (
+            // Lokale Object-URL als Vorschau; next/image ist dafür nicht nötig.
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={mediaPreview} alt="Vorschau" className="h-24 rounded-xl border border-gray-700" />
           )}
           <button

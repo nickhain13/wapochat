@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, Bell, BellOff, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Group } from '@/types'
-import OneSignal from 'react-onesignal'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 interface Props {
   userId: string
@@ -12,66 +12,30 @@ interface Props {
   onClose: () => void
 }
 
-let osInitialized = false
-
-async function ensureOneSignal(userId: string) {
-  if (!osInitialized && process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID && 'Notification' in window) {
-    osInitialized = true
-    await OneSignal.init({
-      appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
-      serviceWorkerParam: { scope: '/' },
-      serviceWorkerPath: '/OneSignalSDKWorker.js',
-      notifyButton: { enable: false } as never,
-      allowLocalhostAsSecureOrigin: process.env.NODE_ENV === 'development',
-    })
-    try { OneSignal.login(userId) } catch {}
-  }
-}
-
 export default function NotificationSettings({ userId, groups, onClose }: Props) {
-  const [globalEnabled, setGlobalEnabled] = useState(false)
+  const { permission, subscribed, loading: pushLoading, subscribe, unsubscribe, supported } = usePushNotifications()
   const [mutedGroupIds, setMutedGroupIds] = useState<Set<string>>(new Set())
-  const [loading, setLoading] = useState(true)
+  const [loadingMutes, setLoadingMutes] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
-    async function load() {
-      try {
-        await ensureOneSignal(userId)
-      } catch {}
-      setGlobalEnabled('Notification' in window && Notification.permission === 'granted')
-
-      try {
-        const { data } = await supabase
-          .from('notification_mutes')
-          .select('group_id')
-          .eq('user_id', userId)
-        setMutedGroupIds(new Set(data?.map(m => m.group_id) || []))
-      } catch {}
-
-      setLoading(false)
-    }
-    load()
-  }, [userId])
+    supabase
+      .from('notification_mutes')
+      .select('group_id')
+      .eq('user_id', userId)
+      .then(({ data }) => {
+        setMutedGroupIds(new Set(data?.map((m: { group_id: string }) => m.group_id) || []))
+        setLoadingMutes(false)
+      })
+  }, [supabase, userId])
 
   async function toggleGlobal() {
-    setToggling('global')
-    try {
-      if (globalEnabled) {
-        await OneSignal.User.PushSubscription.optOut()
-        setGlobalEnabled(false)
-      } else {
-        await OneSignal.Notifications.requestPermission()
-        const granted = OneSignal.Notifications.permission
-        if (granted) {
-          await OneSignal.User.PushSubscription.optIn()
-          OneSignal.login(userId)
-        }
-        setGlobalEnabled(Notification.permission === 'granted')
-      }
-    } catch {}
-    setToggling(null)
+    if (subscribed) {
+      await unsubscribe()
+    } else {
+      await subscribe()
+    }
   }
 
   async function toggleGroup(groupId: string) {
@@ -89,6 +53,8 @@ export default function NotificationSettings({ userId, groups, onClose }: Props)
     setToggling(null)
   }
 
+  const globalEnabled = subscribed && permission === 'granted'
+
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-sm shadow-2xl">
@@ -102,17 +68,25 @@ export default function NotificationSettings({ userId, groups, onClose }: Props)
           </button>
         </div>
 
-        {loading ? (
+        {loadingMutes ? (
           <div className="flex items-center justify-center p-10">
             <Loader2 className="w-5 h-5 text-gray-600 animate-spin" />
           </div>
+        ) : !supported ? (
+          <div className="p-5 text-gray-500 text-sm text-center">
+            Dieser Browser unterstützt keine Push-Benachrichtigungen.
+          </div>
         ) : (
           <div className="p-4 space-y-1">
-            {/* Global Toggle */}
+            {permission === 'denied' && (
+              <p className="text-gray-500 text-xs px-3 pb-2">
+                Benachrichtigungen wurden blockiert. Bitte in den Browser-Einstellungen aktivieren.
+              </p>
+            )}
             <button
               onClick={toggleGlobal}
-              disabled={toggling === 'global'}
-              className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-gray-800 transition-colors"
+              disabled={pushLoading || permission === 'denied'}
+              className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
               <div className="flex items-center gap-3">
                 {globalEnabled
@@ -123,7 +97,7 @@ export default function NotificationSettings({ userId, groups, onClose }: Props)
                   <p className="text-gray-500 text-xs">{globalEnabled ? 'Aktiv' : 'Deaktiviert'}</p>
                 </div>
               </div>
-              {toggling === 'global'
+              {pushLoading
                 ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
                 : <div className={`w-9 h-5 rounded-full transition-colors flex items-center px-0.5 ${globalEnabled ? 'bg-amber-500' : 'bg-gray-700'}`}>
                     <div className={`w-4 h-4 rounded-full bg-white transition-transform ${globalEnabled ? 'translate-x-4' : 'translate-x-0'}`} />

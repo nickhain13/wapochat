@@ -42,32 +42,35 @@ export default function HomePage() {
 
   const fetchData = useCallback(async () => {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
 
-    const [{ data: profile }, { data: memberGroups }, { data: unreadData }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('group_members').select('groups(*)').eq('user_id', user.id).order('joined_at', { ascending: true }),
-      supabase.rpc('get_unread_counts', { p_user_id: user.id }),
+    const token = session.access_token
+
+    const [myGroupsRes, unreadResult] = await Promise.all([
+      fetch('/api/my-groups', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      supabase.rpc('get_unread_counts', { p_user_id: session.user.id }),
     ])
 
-    if (profile) setCurrentUser(profile)
-
-    if (memberGroups) {
-      const groupList = memberGroups
-        .map((m: { groups: Group | Group[] | null }) => m.groups)
-        .filter((g): g is Group => g !== null && !Array.isArray(g))
-      setGroups(groupList)
-      if (groupList.length > 0 && !selectedGroupRef.current) {
-        const first = groupList[0]
-        setSelectedGroup(first)
-        markAsRead(user.id, first.id)
+    if (myGroupsRes.ok) {
+      const { groups: groupList, profile } = await myGroupsRes.json()
+      if (profile) setCurrentUser(profile)
+      if (groupList) {
+        setGroups(groupList)
+        if (groupList.length > 0 && !selectedGroupRef.current) {
+          const first = groupList[0]
+          setSelectedGroup(first)
+          markAsRead(session.user.id, first.id)
+        }
       }
     }
 
-    if (unreadData) {
+    if (unreadResult.data) {
       const counts: Record<string, number> = {}
-      unreadData.forEach((row: { group_id: string; unread_count: number }) => {
+      unreadResult.data.forEach((row: { group_id: string; unread_count: number }) => {
         counts[row.group_id] = Number(row.unread_count)
       })
       setUnreadCounts(counts)
@@ -77,7 +80,7 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    fetchData()
+    queueMicrotask(fetchData)
   }, [fetchData])
 
   // Real-time: neue Nachrichten → Unread-Badge aktualisieren
@@ -103,6 +106,25 @@ export default function HomePage() {
     return () => { supabase.removeChannel(channel) }
   }, [currentUser])
 
+  // Real-time: Gruppenmitgliedschaft ändert sich → Gruppen neu laden
+  useEffect(() => {
+    if (!currentUser) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel('membership-tracker')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'group_members',
+        filter: `user_id=eq.${currentUser.id}`,
+      }, () => {
+        fetchData()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [currentUser, fetchData])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -127,7 +149,7 @@ export default function HomePage() {
       />
 
       <main className="flex-1 flex flex-col min-w-0">
-        <NotificationBanner userId={currentUser.id} />
+        <NotificationBanner />
 
         {selectedGroup ? (
           <>
@@ -151,7 +173,7 @@ export default function HomePage() {
               <ChatWindow
                 group={selectedGroup}
                 currentUser={currentUser}
-                isAdmin={currentUser.role === 'admin'}
+                canApprove={currentUser.role === 'admin' || currentUser.role === 'regie'}
               />
             </div>
           </>

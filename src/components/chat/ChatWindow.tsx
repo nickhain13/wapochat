@@ -9,36 +9,36 @@ import MessageInput from './MessageInput'
 interface Props {
   group: Group
   currentUser: Profile
-  isAdmin: boolean
+  canApprove: boolean
 }
 
-export default function ChatWindow({ group, currentUser, isAdmin }: Props) {
+export default function ChatWindow({ group, currentUser, canApprove }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const supabase = useMemo(() => createClient(), [])
 
   const fetchMessages = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select(`*, profiles!messages_user_id_fkey(*), reactions(*)`)
-      .eq('group_id', group.id)
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Nachrichten Fehler:', error.message, error.details)
-      setError(error.message)
-    } else {
-      setError('')
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    const res = await fetch(`/api/messages?groupId=${group.id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      setError(json.error || `Fehler ${res.status}`)
+      setLoading(false)
+      return
     }
-    setMessages(data || [])
+    const { messages } = await res.json()
+    setError('')
+    setMessages(messages || [])
     setLoading(false)
   }, [group.id, supabase])
 
   useEffect(() => {
-    fetchMessages()
+    queueMicrotask(fetchMessages)
 
     const channel = supabase
       .channel(`group-${group.id}`)
@@ -81,7 +81,7 @@ export default function ChatWindow({ group, currentUser, isAdmin }: Props) {
               key={msg.id}
               message={msg}
               currentUser={currentUser}
-              isAdmin={isAdmin}
+              canApprove={canApprove}
             />
           ))
         )}

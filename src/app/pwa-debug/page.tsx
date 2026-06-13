@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Status {
   https: boolean
@@ -19,6 +19,7 @@ interface Status {
 export default function PwaDebugPage() {
   const [status, setStatus] = useState<Partial<Status>>({})
   const [log, setLog] = useState<string[]>([])
+  const installPromptFiredRef = useRef(false)
 
   function addLog(msg: string) {
     setLog(prev => [...prev, msg])
@@ -38,7 +39,9 @@ export default function PwaDebugPage() {
 
     const manifestLink = document.querySelector('link[rel="manifest"]')
     s.manifestLinked = !!manifestLink
-    addLog(manifestLink ? `Manifest link gefunden: ${manifestLink.getAttribute('href')}` : 'KEIN manifest link im HTML!')
+    queueMicrotask(() => {
+      addLog(manifestLink ? `Manifest link gefunden: ${manifestLink.getAttribute('href')}` : 'KEIN manifest link im HTML!')
+    })
 
     if (manifestLink) {
       fetch('/manifest.json')
@@ -70,6 +73,7 @@ export default function PwaDebugPage() {
     }
 
     const handler = () => {
+      installPromptFiredRef.current = true
       setStatus(prev => ({ ...prev, installPromptFired: true }))
       addLog('beforeinstallprompt Event gefeuert!')
     }
@@ -77,10 +81,10 @@ export default function PwaDebugPage() {
 
     setTimeout(() => {
       setStatus(prev => ({ ...prev, installPromptFired: prev.installPromptFired ?? false }))
-      if (!status.installPromptFired) addLog('Nach 5s: beforeinstallprompt NICHT gefeuert')
+      if (!installPromptFiredRef.current) addLog('Nach 5s: beforeinstallprompt NICHT gefeuert')
     }, 5000)
 
-    setStatus(s)
+    queueMicrotask(() => setStatus(s))
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
