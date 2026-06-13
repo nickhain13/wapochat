@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
+import webpush from 'web-push'
 
 interface WebhookPayload {
   type: 'INSERT' | 'UPDATE' | 'DELETE'
@@ -23,12 +24,18 @@ export async function POST(request: Request) {
     }
   }
 
-  const payload: WebhookPayload = await request.json()
-  if (payload.type !== 'INSERT' || payload.table !== 'messages') {
+  const webhookPayload: WebhookPayload = await request.json()
+  if (webhookPayload.type !== 'INSERT' || webhookPayload.table !== 'messages') {
     return NextResponse.json({ skipped: true })
   }
 
-  const { group_id, user_id, content, image_url } = payload.record
+  webpush.setVapidDetails(
+    `mailto:${process.env.VAPID_EMAIL}`,
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!
+  )
+
+  const { group_id, user_id, content, image_url } = webhookPayload.record
   const supabase = createAdminClient()
 
   const [{ data: sender }, { data: group }, { data: members }, { data: mutes }] = await Promise.all([
@@ -44,28 +51,39 @@ export async function POST(request: Request) {
 
   const mutedIds = new Set(mutes?.map((m: { user_id: string }) => m.user_id) || [])
   const senderName = sender.display_name || sender.email.split('@')[0]
-  const notifTitle = `${senderName} in ${group.icon} ${group.name}`
-  const notifBody = content || (image_url ? '📷 Bild' : 'Neue Nachricht')
+  const title = `${senderName} in ${group.icon} ${group.name}`
+  const body = content || (image_url ? '📷 Bild' : 'Neue Nachricht')
+  const url = process.env.NEXT_PUBLIC_APP_URL || '/'
+
   const recipientIds = members
     .map((m: { user_id: string }) => m.user_id)
     .filter((id: string) => !mutedIds.has(id))
 
-  const res = await fetch('https://onesignal.com/api/v1/notifications', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${process.env.ONESIGNAL_REST_API_KEY}`,
-    },
-    body: JSON.stringify({
-      app_id: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
-      include_aliases: { external_id: recipientIds },
-      target_channel: 'push',
-      headings: { en: notifTitle, de: notifTitle },
-      contents: { en: notifBody, de: notifBody },
-      url: process.env.NEXT_PUBLIC_APP_URL || '/',
-    }),
-  })
+  if (recipientIds.length === 0) return NextResponse.json({ skipped: true })
 
-  const result = await res.json()
-  return NextResponse.json({ ok: true, onesignal: result })
+  const { data: subscriptions } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth')
+    .in('user_id', recipientIds)
+
+  if (!subscriptions || subscriptions.length === 0) {
+    return NextResponse.json({ skipped: true, reason: 'no subscriptions' })
+  }
+
+  const pushPayload = JSON.stringify({ title, body, url, tag: webhookPayload.record.id })
+
+  const results = await Promise.allSettled(
+    subscriptions.map((sub: { endpoint: string; p256dh: string; auth: string }) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        pushPayload,
+        { urgency: 'high', TTL: 60 }
+      )
+    )
+  )
+
+  const sent = results.filter(r => r.status === 'fulfilled').length
+  const failed = results.filter(r => r.status === 'rejected').length
+
+  return NextResponse.json({ ok: true, sent, failed })
 }

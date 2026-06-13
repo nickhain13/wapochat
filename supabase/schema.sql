@@ -10,7 +10,7 @@ create table public.profiles (
   email text not null,
   display_name text,
   avatar_url text,
-  role text not null default 'member' check (role in ('admin', 'member')),
+  role text not null default 'member' check (role in ('admin', 'regie', 'member')),
   created_at timestamptz default now()
 );
 
@@ -68,6 +68,25 @@ create table public.invitations (
   created_at timestamptz default now()
 );
 
+-- Push-Abonnements (nur via service_role aus API-Routen beschrieben)
+create table public.push_subscriptions (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  endpoint text not null,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz default now(),
+  unique (user_id, endpoint)
+);
+
+-- Stummschaltungen pro Gruppe
+create table public.notification_mutes (
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  group_id uuid references public.groups(id) on delete cascade not null,
+  created_at timestamptz default now(),
+  primary key (user_id, group_id)
+);
+
 -- Row Level Security aktivieren
 alter table public.profiles enable row level security;
 alter table public.groups enable row level security;
@@ -75,6 +94,8 @@ alter table public.group_members enable row level security;
 alter table public.messages enable row level security;
 alter table public.reactions enable row level security;
 alter table public.invitations enable row level security;
+alter table public.push_subscriptions enable row level security;
+alter table public.notification_mutes enable row level security;
 
 -- Policies: Profiles
 create policy "Jeder kann Profile sehen" on public.profiles for select using (true);
@@ -109,7 +130,7 @@ create policy "Gruppenmitglieder schreiben Nachrichten" on public.messages for i
 create policy "Eigene Nachrichten löschen" on public.messages for delete
   using (user_id = auth.uid() or exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
 create policy "Admins genehmigen Nachrichten" on public.messages for update
-  using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+  using (exists (select 1 from public.profiles where id = auth.uid() and role in ('admin', 'regie')));
 
 -- Policies: Reactions
 create policy "Reaktionen sehen" on public.reactions for select using (true);
@@ -123,6 +144,24 @@ create policy "Admins sehen Einladungen" on public.invitations for select
   using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
 create policy "Admins erstellen Einladungen" on public.invitations for insert
   with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+
+-- Policies: Notification Mutes
+create policy "Eigene Stummschaltungen sehen" on public.notification_mutes for select
+  using (auth.uid() = user_id);
+create policy "Eigene Stummschaltungen hinzufügen" on public.notification_mutes for insert
+  with check (auth.uid() = user_id);
+create policy "Eigene Stummschaltungen entfernen" on public.notification_mutes for delete
+  using (auth.uid() = user_id);
+
+-- Data API grants (Supabase erfordert ab Mai 2026 explizite GRANTs)
+grant select, insert, update, delete on public.profiles to authenticated, service_role;
+grant select, insert, update, delete on public.groups to authenticated, service_role;
+grant select, insert, update, delete on public.group_members to authenticated, service_role;
+grant select, insert, update, delete on public.messages to authenticated, service_role;
+grant select, insert, update, delete on public.reactions to authenticated, service_role;
+grant select, insert, update, delete on public.invitations to authenticated, service_role;
+grant select, insert, update, delete on public.notification_mutes to authenticated, service_role;
+grant select, insert, update, delete on public.push_subscriptions to service_role;
 
 -- Profil automatisch bei Registrierung erstellen + Gruppe aus Einladung zuweisen
 create or replace function public.handle_new_user()

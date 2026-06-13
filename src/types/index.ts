@@ -3,7 +3,7 @@ export interface Profile {
   email: string
   display_name: string | null
   avatar_url: string | null
-  role: 'admin' | 'member'
+  role: 'admin' | 'regie' | 'member'
   created_at: string
 }
 

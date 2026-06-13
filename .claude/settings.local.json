@@ -15,7 +15,14 @@
       "WebSearch",
       "WebFetch(domain:commons.wikimedia.org)",
       "Bash(node -e \"require\\('sharp'\\)\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(vercel *)",
+      "Bash(npm uninstall *)",
+      "Bash(node *)",
+      "Bash(Remove-Item *)",
+      "Bash(del *)",
+      "Bash(Get-Content D:\\\\Claude\\\\WaPoChat\\\\.gitignore)",
+      "Bash(Select-String vercel *)"
     ]
   }
 }

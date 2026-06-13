@@ -54,6 +54,8 @@ export default function CreateGroupModal({ userId, parentGroup, allGroups, onClo
     }
 
     if (group) {
+      // Trigger add_creator_to_group läuft async – kurz warten damit er committed ist
+      await new Promise(r => setTimeout(r, 300))
       onCreated()
       onClose()
     }
