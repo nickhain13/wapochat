@@ -5,7 +5,11 @@ import { X, Hash } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Group } from '@/types'
 
-const ICONS = ['🎬', '🎭', '🚗', '🏠', '💡', '🎵', '📦', '👔', '🔧', '📷', '🎨', '✈️', '🌿', '💄', '🎪']
+const ICONS = [
+  '🎬', '🎭', '🚗', '🏠', '💡', '🎵', '📦', '👔', '🔧', '📷', '🎨', '✈️', '🌿', '💄', '🎪',
+  '🚤', '⛵', '🛥️', '🌊', '⚓', '🛟', '🐟', '🌦️', '☀️', '🌙', '🍽️', '☕', '🚌', '🚲', '🚑',
+  '🎤', '🎧', '📋', '📝', '🧰', '🔌', '💻', '📱', '📍', '🗺️', '🏥', '🏖️', '🌲', '🐕', '⭐',
+]
 
 interface Props {
   userId: string
